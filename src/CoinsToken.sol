@@ -127,28 +127,25 @@ contract CoinsToken is Token, Math {
     event WithdrawRequest(address indexed participant, uint256 amountTokens);
     event Withdraw(address indexed participant, uint256 amountTokens, uint256 etherAmount);
 
-    // MODIFIERS
+
+    // MODIFIERS: Conditions for execution of functions
 
     modifier isTradeable {// exempt vestingContract and fundWallet to allow dev allocations
         require(tradeable || msg.sender == fundWallet || msg.sender == vestingContract);
         _;
     }
-
     modifier onlyWhitelist {
         require(whitelist[msg.sender]);
         _;
     }
-
     modifier onlyFundWallet {
         require(msg.sender == fundWallet);
         _;
     }
-
     modifier onlyManagingWallets {
         require(msg.sender == controlWallet || msg.sender == fundWallet);
         _;
     }
-
     modifier only_if_controlWallet {
         if (msg.sender == controlWallet) _;
     }
@@ -159,6 +156,7 @@ contract CoinsToken is Token, Math {
     modifier only_if_increase (uint256 newNumerator) {
         if (newNumerator > currentPrice.numerator) _;
     }
+
 
     // CONSTRUCTOR
 
@@ -180,6 +178,7 @@ contract CoinsToken is Token, Math {
     // METHODS
 
     function setVestingContract(address vestingContractInput) external onlyFundWallet {
+        // Info: address(0) is the same as "0x0", an uninitialized address.
         require(vestingContractInput != address(0));
         vestingContract = vestingContractInput;
         whitelist[vestingContract] = true;
