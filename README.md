@@ -5,6 +5,13 @@ http://solidity.readthedocs.io/en/develop/contracts.html?highlight=pure#function
 
 constant is an alias to view.
 
+public vs external
+https://ethereum.stackexchange.com/questions/19380/external-vs-public-best-practices?answertab=active#tab-top
+
+
+modifier or require
+https://ethereum.stackexchange.com/questions/29867/using-require-or-modifier
+
 
 
 ### variables

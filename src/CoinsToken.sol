@@ -146,14 +146,14 @@ contract CoinsToken is Token, Math {
         require(msg.sender == controlWallet || msg.sender == fundWallet);
         _;
     }
-    modifier only_if_controlWallet {
+    modifier onlyControlWallet {
         if (msg.sender == controlWallet) _;
     }
-    modifier require_waited {
+    modifier requireWaited {
         require(safeSub(now, waitTime) >= previousUpdateTime);
         _;
     }
-    modifier only_if_increase (uint256 newNumerator) {
+    modifier requireIncreased (uint256 newNumerator) {
         if (newNumerator > currentPrice.numerator) _;
     }
 
@@ -161,6 +161,7 @@ contract CoinsToken is Token, Math {
     // CONSTRUCTOR
 
     function C20(address controlWalletInput, uint256 priceNumeratorInput, uint256 startBlockInput, uint256 endBlockInput) {
+        // Info: address(0) is the same as "0x0" -> an uninitialized address.
         require(controlWalletInput != address(0));
         require(priceNumeratorInput > 0);
         require(endBlockInput > startBlockInput);
@@ -177,18 +178,22 @@ contract CoinsToken is Token, Math {
 
     // METHODS
 
+    // Only the fixed FundWallet can set or update the vestingContract
     function setVestingContract(address vestingContractInput) external onlyFundWallet {
-        // Info: address(0) is the same as "0x0", an uninitialized address.
+        // Info: address(0) is the same as "0x0" -> an uninitialized address.
         require(vestingContractInput != address(0));
         vestingContract = vestingContractInput;
         whitelist[vestingContract] = true;
         vestingSet = true;
     }
 
-    // allows controlWallet to update the price within a time contstraint, allows fundWallet complete control
+    // UPDATE Price.numerator
+    // allows controlWallet or fundWallet to update the price within a time contstraint, allows fundWallet complete control
+    // requires: newNumerator > currentNumerator
+    // waitTime must be exceeded since last update
     function updatePrice(uint256 newNumerator) external onlyManagingWallets {
         require(newNumerator > 0);
-        require_limited_change(newNumerator);
+        requireLimitedChange(newNumerator);
         // either controlWallet command is compliant or transaction came from fundWallet
         currentPrice.numerator = newNumerator;
         // maps time to new Price (if not during ICO)
@@ -197,19 +202,16 @@ contract CoinsToken is Token, Math {
         PriceUpdate(newNumerator, currentPrice.denominator);
     }
 
-    function require_limited_change(uint256 newNumerator)
-    private
-    only_if_controlWallet
-    require_waited
-    only_if_increase(newNumerator)
-    {
+    // controlWallet can only increase price by max 20% and only every waitTime
+    function requireLimitedChange(uint256 newNumerator) private onlyControlWallet requireWaited requireIncreased(newNumerator) {
         uint256 percentage_diff = 0;
         percentage_diff = safeMul(newNumerator, 100) / currentPrice.numerator;
         percentage_diff = safeSub(percentage_diff, 100);
-        // controlWallet can only increase price by max 20% and only every waitTime
         require(percentage_diff <= 20);
     }
 
+    // UPDATE Price.numerator
+    // allows fundWallet to update the denominator within a time contstraint
     function updatePriceDenominator(uint256 newDenominator) external onlyFundWallet {
         require(block.number > fundingEndBlock);
         require(newDenominator > 0);
@@ -218,6 +220,17 @@ contract CoinsToken is Token, Math {
         prices[previousUpdateTime] = currentPrice;
         previousUpdateTime = now;
         PriceUpdate(currentPrice.numerator, newDenominator);
+    }
+
+
+    function allocatePresaleTokens(address participant, uint amountTokens) external onlyFundWallet {
+        require(block.number < fundingEndBlock);
+        require(participant != address(0));
+        whitelist[participant] = true;
+        // automatically whitelist accepted presale
+        allocateTokens(participant, amountTokens);
+        Whitelist(participant);
+        AllocatePresale(participant, amountTokens);
     }
 
     function allocateTokens(address participant, uint256 amountTokens) private {
@@ -233,15 +246,6 @@ contract CoinsToken is Token, Math {
         balances[vestingContract] = safeAdd(balances[vestingContract], developmentAllocation);
     }
 
-    function allocatePresaleTokens(address participant, uint amountTokens) external onlyFundWallet {
-        require(block.number < fundingEndBlock);
-        require(participant != address(0));
-        whitelist[participant] = true;
-        // automatically whitelist accepted presale
-        allocateTokens(participant, amountTokens);
-        Whitelist(participant);
-        AllocatePresale(participant, amountTokens);
-    }
 
     function verifyParticipant(address participant) external onlyManagingWallets {
         whitelist[participant] = true;
