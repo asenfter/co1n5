@@ -22,7 +22,8 @@ contract CoinsToken is Token, Math {
     }
 
     // todo: check why onlyPayloadSize
-    function transfer(address _to, uint256 _value) onlyPayloadSize(2) returns (bool success) {
+    // prevent transfers until trading allowed
+    function transfer(address _to, uint256 _value) onlyPayloadSize(2) isTradeable returns (bool success) {
         require(_value > 0);
         require(_to != address(0) && balances[msg.sender] >= _value);
 
@@ -32,7 +33,8 @@ contract CoinsToken is Token, Math {
         return true;
     }
 
-    function transferFrom(address _from, address _to, uint256 _value) onlyPayloadSize(3) returns (bool success) {
+    // prevent transfers until trading allowed
+    function transferFrom(address _from, address _to, uint256 _value) onlyPayloadSize(3) isTradeable returns (bool success) {
         require(_value > 0);
         require(_to != address(0) && balances[_from] >= _value && allowed[_from][msg.sender] >= _value);
 
@@ -146,15 +148,21 @@ contract CoinsToken is Token, Math {
         require(msg.sender == controlWallet || msg.sender == fundWallet);
         _;
     }
-    modifier onlyControlWallet {
-        if (msg.sender == controlWallet) _;
-    }
     modifier requireWaited {
         require(safeSub(now, waitTime) >= previousUpdateTime);
         _;
     }
+    modifier requireVestingSet (uint256 newNumerator) {
+        require(vestingSet);
+        _;
+    }
+
+    // TODO
     modifier requireIncreased (uint256 newNumerator) {
         if (newNumerator > currentPrice.numerator) _;
+    }
+    modifier onlyControlWallet {
+        if (msg.sender == controlWallet) _;
     }
 
 
@@ -233,8 +241,9 @@ contract CoinsToken is Token, Math {
         AllocatePresale(participant, amountTokens);
     }
 
-    function allocateTokens(address participant, uint256 amountTokens) private {
-        require(vestingSet);
+    // raise balance of participants and vestingContract and totalSupply
+    // vestingContract is increased by 14,9% of amountTokens
+    function allocateTokens(address participant, uint256 amountTokens) private requireVestingSet {
         // 13% of total allocated for PR, Marketing, Team, Advisors
         uint256 developmentAllocation = safeMul(amountTokens, 14942528735632185) / 100000000000000000;
         // check that token cap is not exceeded
@@ -288,7 +297,7 @@ contract CoinsToken is Token, Math {
         require(block.number > fundingEndBlock);
         require(amountTokensToWithdraw > 0);
         address participant = msg.sender;
-        require(balanceOf(participant) >= amountTokensToWithdraw);
+        require(balances[participant] >= amountTokensToWithdraw);
         require(withdrawals[participant].tokens == 0);
         // participant cannot have outstanding withdrawals
         balances[participant] = safeSub(balances[participant], amountTokensToWithdraw);
@@ -336,7 +345,7 @@ contract CoinsToken is Token, Math {
 
     function checkWithdrawValue(uint256 amountTokensToWithdraw) constant returns (uint256 etherValue) {
         require(amountTokensToWithdraw > 0);
-        require(balanceOf(msg.sender) >= amountTokensToWithdraw);
+        require(balances[msg.sender] >= amountTokensToWithdraw);
         uint256 withdrawValue = safeMul(amountTokensToWithdraw, currentPrice.denominator) / currentPrice.numerator;
         require(this.balance >= withdrawValue);
         return withdrawValue;
@@ -350,7 +359,7 @@ contract CoinsToken is Token, Math {
 
     // allow fundWallet to remove ether from contract
     function removeLiquidity(uint256 amount) external onlyManagingWallets {
-        require(amount <= this.balance);
+        require(this.balance >= amount);
         fundWallet.transfer(amount);
         RemoveLiquidity(amount);
     }
@@ -406,15 +415,4 @@ contract CoinsToken is Token, Math {
         uint256 balance = token.balanceOf(this);
         token.transfer(fundWallet, balance);
     }
-
-    // prevent transfers until trading allowed
-    function transfer(address _to, uint256 _value) isTradeable returns (bool success) {
-        return super.transfer(_to, _value);
-    }
-
-    function transferFrom(address _from, address _to, uint256 _value) isTradeable returns (bool success) {
-        return super.transferFrom(_from, _to, _value);
-    }
-
-
 }
