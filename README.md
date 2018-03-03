@@ -1,10 +1,13 @@
-# CO1N5
+# Solidity
+
+Best practice
+https://github.com/ConsenSys/smart-contract-best-practices/#circuit-breakers-pause-contract-functionality
+
 
 ### functions
 http://solidity.readthedocs.io/en/develop/contracts.html?highlight=pure#functions
 
 constant is an alias to view.
-
 
 
 public vs external
