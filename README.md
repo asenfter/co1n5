@@ -1,7 +1,11 @@
 # Solidity
 
-Best practice
+###Best practice
 https://github.com/ConsenSys/smart-contract-best-practices/#circuit-breakers-pause-contract-functionality
+
+
+###GAS
+https://ethereum.stackexchange.com/questions/18778/gas-cost-of-different-computations
 
 
 ### functions
