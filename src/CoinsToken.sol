@@ -157,7 +157,7 @@ contract CoinsToken is Token, Math {
         _;
     }
 
-    // TODO
+    // Info Andreas: No exception is thrown -> no gas but also no rollback. Money is gone!
     modifier requireIncreased (uint256 newNumerator) {
         if (newNumerator > currentPrice.numerator) _;
     }
