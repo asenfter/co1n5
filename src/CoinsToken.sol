@@ -10,7 +10,7 @@ contract CoinsToken is Token, Math {
      * Standard members and ERC-20 Impl
      *+-+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+-*/
     string public name = "CO1N5";
-    string public symbol = "C15";
+    string public symbol = "CNS";
     uint256 public decimals = 18;
     uint256 public totalSupply;
 
@@ -39,8 +39,8 @@ contract CoinsToken is Token, Math {
         require(_to != address(0) && balances[_from] >= _value && allowed[_from][msg.sender] >= _value);
 
         balances[_from] = safeSub(balances[_from], _value);
-        balances[_to] = safeAdd(balances[_to], _value);
         allowed[_from][msg.sender] = safeSub(allowed[_from][msg.sender], _value);
+        balances[_to] = safeAdd(balances[_to], _value);
         Transfer(_from, _to, _value);
         return true;
     }
@@ -73,7 +73,7 @@ contract CoinsToken is Token, Math {
      * Extended Impl
      *+-+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+-*/
 
-    // @Andreas: 86206896 * 10^18
+    // @Andreas: 86206896 * 10^18 wei
     uint256 public tokenCap = 86206896 * (10 ** 18);
 
     // crowdsale parameters
@@ -196,7 +196,8 @@ contract CoinsToken is Token, Math {
     }
 
     // UPDATE Price.numerator
-    // allows controlWallet or fundWallet to update the price within a time contstraint, allows fundWallet complete control
+    // allows controlWallet or fundWallet to update the price within a time constraint,
+    // allows fundWallet complete control over Price: fundwallet has no 20% limitation and can also decrease numerator!!!!
     // requires: newNumerator > currentNumerator
     // waitTime must be exceeded since last update
     function updatePrice(uint256 newNumerator) external onlyManagingWallets {
