@@ -1,3 +1,14 @@
+# Create a contract on the test net
+
+1. download Misc from [https://github.com/ethereum/mist/releases]
+2. Install Misc and start the application. Quit sync by clicking "Launch Application"
+3. Connect to Test-Net via Menü->Entwicklung->Netzwerk->Rinkeby Test-Netzwerk
+4. Click on search button on the left (Browser within the Misc app) and open [https://faucet.rinkeby.io/]
+5. get some ether via twitter: see https://www.youtube.com/watch?v=DEULs3ShTxo
+6. Now you have ether and can create contracts on the test net.
+7. open IDE using Menü->Entwicklung->Remix IDE öffnen
+
+
 # Solidity
 
 ###Best practice
