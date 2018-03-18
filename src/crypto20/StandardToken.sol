@@ -4,7 +4,7 @@ import './Math.sol';
 import './Token.sol';
 
 // CO1N5 Token
-contract CoinsToken is Token, Math {
+contract StandardToken is Token, Math {
 
     /*+-+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+-*
      * Standard members and ERC-20 Impl

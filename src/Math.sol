@@ -26,5 +26,4 @@ contract Math {
         assert(a <= c && b <= c);
         return c;
     }
-
 }
