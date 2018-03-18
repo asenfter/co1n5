@@ -211,7 +211,11 @@ contract CoinsToken is Token, Math, Safe {
 
     /*+-+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+-*
      *
-     *                      Co1n5 Contract
+     * CO1N5 CONTRACT:
+     *     - token capitalization: 86206896 * (10 ** 18)
+     *     - minimum amount of ether to buy Co1n5 Tokens: 0.04 ether
+     *     - vesting: 14.9425% of Pre-sale and ICO
+     *     -
      *
      *+-+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+-*/
 
