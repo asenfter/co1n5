@@ -1,11 +1,10 @@
 pragma solidity 0.4.11;
 
 import './Math.sol';
-import './Safe.sol';
 import './Token.sol';
 
 // CO1N5 Token
-contract CoinsToken is Token, Math, Safe {
+contract CoinsToken is Token, Math {
 
     /*+-+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+-*
      * Standard members and ERC-20 Impl
