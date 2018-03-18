@@ -1,105 +1,20 @@
 pragma solidity 0.4.11;
 
 import './Math.sol';
-import './Safe.sol';
 import './Token.sol';
 
+/**
+     *
+     *
+     * @param
+     */
+
 // CO1N5 Token
-contract CoinsToken is Token, Math, Safe {
+contract StandardToken is Token, Math {
 
-    /*+-+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+-*
-     * MODIFIERS: Conditions for execution of functions
-     *            and throw an exception if the condition
-     *            is not met.
-     *+-+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+-*/
-
-    /**
-     * Check if trading is enabled. This condition does not apply to fundWallet and vestingContract.
-     * @throws Exception if the condition is not met
-     */
-    modifier isTradeable {
-        require(tradeable || msg.sender == fundWallet || msg.sender == vestingContract);
-        _;
-    }
-
-    /**
-     * Check if msg.sender is a known participant of the ICO.
-     * @throws Exception if the condition is not met
-     */
-    modifier onlyIcoParticipant {
-        require(icoParticipants[msg.sender]);
-        _;
-    }
-
-    /**
-     * Check if msg.sender is fundWallet.
-     * @throws Exception if the condition is not met
-     */
-    modifier onlyFundWallet {
-        require(msg.sender == fundWallet);
-        _;
-    }
-
-    /**
-     * Check if msg.sender is fundWallet or controlWallet.
-     * @throws Exception if the condition is not met
-     */
-    modifier onlyManagingWallets {
-        require(msg.sender == controlWallet || msg.sender == fundWallet);
-        _;
-    }
-
-    /**
-     * Check if msg.sender is controlWallet.
-     * @throws Exception if the condition is not met
-     */
-    modifier onlyControlWallet {
-        require(msg.sender == controlWallet);
-        _;
-    }
-
-    /**
-     * Check if waitTime has expired for the next price change.
-     * @throws Exception if the condition is not met
-     */
-    modifier requireWaited {
-        require(safeSub(now, waitTime) >= previousUpdateTime);
-        _;
-    }
-
-    /**
-     * Check if a vesting contract is set
-     * @throws Exception if the condition is not met
-     */
-    modifier requireVestingSet {
-        require(vestingSet);
-        _;
-    }
-
-    /**
-     * Check if the passed address is valid.
-     * @param addressToCheck - the address to be checked
-     * @throws Exception if the condition is not met
-     */
-    modifier isValidAddress (address addressToCheck) {
-        require(addressToCheck != address(0));
-        _;
-    }
-
-    /**
-     * Check if the passed value is greater than currentPrice.numerator.
-     * No exception is thrown: no gas but also no rollback
-     * @param value - new numerator
-     */
-    modifier requireIncreased (uint256 value) {
-        if (value > currentPrice.numerator) _;
-    }
-
-
-    /*+-+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+-*
+    /*+-+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+-*
      * Standard members and ERC-20 Impl
-     *+-+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+-*/
-
+     *+-+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+-*/
     string public name = "CO1N5";
     string public symbol = "CNS";
     uint256 public decimals = 18;
@@ -108,114 +23,63 @@ contract CoinsToken is Token, Math, Safe {
     mapping(address => uint256) balances;
     mapping(address => mapping(address => uint256)) allowed;
 
-    /**
-     * Returns the balance of the passed address
-     *
-     * @param holder - the address to check
-     * @return balance of the passed address
-     */
-    function balanceOf(address holder) constant returns (uint256 balance) {
-        return balances[holder];
+    function balanceOf(address _owner) constant returns (uint256 balance) {
+        return balances[_owner];
     }
 
-    // todo Andreas: check onlyPayloadSize 2 oder 3?
-    /**
-     * Transfers tokens to an other address.
-     *
-     * @event Transfer
-     * @modifier onlyPayloadSize - prevent short address attack
-     * @modifier isTradeable - prevent transfers until trading allowed
-     * @modifier isValidAddress - prevent transfers to invalid receiver addresses
-     * @param receiver - the receiver address
-     * @param value - amount of tokens to transfer
-     * @return true if the transfer was successful
-     */
-    function transfer(address receiver, uint256 value) onlyPayloadSize(2) isTradeable isValidAddress(receiver) returns (bool success) {
-        require(value > 0 && balances[msg.sender] >= value);
+    // todo: check why onlyPayloadSize
+    // prevent transfers until trading allowed
+    function transfer(address _to, uint256 _value) onlyPayloadSize(2) isTradeable returns (bool success) {
+        require(_value > 0);
+        require(_to != address(0) && balances[msg.sender] >= _value);
 
-        balances[msg.sender] = safeSub(balances[msg.sender], value);
-        balances[receiver] = safeAdd(balances[receiver], value);
-        Transfer(msg.sender, receiver, value);
+        balances[msg.sender] = safeSub(balances[msg.sender], _value);
+        balances[_to] = safeAdd(balances[_to], _value);
+        Transfer(msg.sender, _to, _value);
         return true;
     }
 
-    // todo Andreas: check onlyPayloadSize 2 oder 3?
-    /**
-     * Transfers tokens from spender to receiver address if msg.sender is allowed to.
-     *
-     * @event Transfer
-     * @modifier onlyPayloadSize - prevent short address attack
-     * @modifier isTradeable - prevent transfers until trading allowed
-     * @modifier isValidAddress - prevent transfers to invalid receiver addresses
-     * @param spender - the spender address
-     * @param receiver - the receiver address
-     * @param value - amount of tokens to transfer
-     * @return true if the transfer was successful
-     */
-    function transferFrom(address spender, address receiver, uint256 value) onlyPayloadSize(3) isTradeable isValidAddress(receiver) returns (bool success) {
-        require(value > 0 && balances[spender] >= value && allowed[spender][msg.sender] >= value);
+    // prevent transfers until trading allowed
+    function transferFrom(address _from, address _to, uint256 _value) onlyPayloadSize(3) isTradeable returns (bool success) {
+        require(_value > 0);
+        require(_to != address(0) && balances[_from] >= _value && allowed[_from][msg.sender] >= _value);
 
-        balances[spender] = safeSub(balances[spender], value);
-        allowed[spender][msg.sender] = safeSub(allowed[spender][msg.sender], value);
-        balances[receiver] = safeAdd(balances[receiver], value);
-        Transfer(spender, receiver, value);
+        balances[_from] = safeSub(balances[_from], _value);
+        allowed[_from][msg.sender] = safeSub(allowed[_from][msg.sender], _value);
+        balances[_to] = safeAdd(balances[_to], _value);
+        Transfer(_from, _to, _value);
         return true;
     }
 
-    /**
-     * Authorizes a spender for the passed amount of tokens. To change the approved amount
-     * first the addresses' approval has to be set to zero by calling 'approve(_spender, 0)'
-     *
-     * @event Approval
-     * @modifier onlyPayloadSize - prevent short address attack
-     * @modifier isTradeable - prevent transfers until trading allowed
-     * @modifier isValidAddress - prevent transfers to invalid receiver addresses
-     * @param spender - the spender address
-     * @param receiver - the receiver address
-     * @param value - amount of tokens to authorize
-     * @return true if the authorization was successful
-     */
-    function approve(address spender, uint256 value) onlyPayloadSize(2) returns (bool success) {
-        require(value == 0 || allowed[msg.sender][spender] == 0);
-
-        allowed[msg.sender][spender] = value;
-        Approval(msg.sender, spender, value);
+    // To change the approve amount you first have to reduce the addresses'
+    //  allowance to zero by calling 'approve(_spender, 0)' if it is not
+    //  already 0 to mitigate the race condition described here:
+    //  https://github.com/ethereum/EIPs/issues/20#issuecomment-263524729
+    function approve(address _spender, uint256 _value) onlyPayloadSize(2) returns (bool success) {
+        require(_value == 0 || allowed[msg.sender][_spender] == 0);
+        allowed[msg.sender][_spender] = _value;
+        Approval(msg.sender, _spender, _value);
         return true;
     }
 
-    /**
-     * Returns the authorized amount of tokens for a spender.
-     *
-     * @param holder - the token owner
-     * @param spender - the authorized address
-     * @return the amount of authorized tokens
-     */
-    function getApproval(address holder, address spender) constant returns (uint256 remaining) {
-        return allowed[holder][spender];
+    function allowance(address _owner, address _spender) constant returns (uint256 remaining) {
+        return allowed[_owner][_spender];
     }
 
-    /**
-     * Changes the amount of authorized tokens for a spender.
-     *
-     * @param holder - the token owner
-     * @param spender - the authorized address
-     * @return the amount of authorized tokens
-     */
-    function changeApproval(address spender, uint256 oldValue, uint256 newValue) onlyPayloadSize(3) returns (bool success) {
-        require(allowed[msg.sender][spender] == oldValue);
-        allowed[msg.sender][spender] = newValue;
-        Approval(msg.sender, spender, newValue);
+
+    function changeApproval(address _spender, uint256 _oldValue, uint256 _newValue) onlyPayloadSize(3) returns (bool success) {
+        require(allowed[msg.sender][_spender] == _oldValue);
+        allowed[msg.sender][_spender] = _newValue;
+        Approval(msg.sender, _spender, _newValue);
         return true;
     }
 
 
-    /*+-+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+-*
-     *
-     *                      Co1n5 Contract
-     *
-     *+-+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+-*/
+    /*+-+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+-*
+     * Extended Impl
+     *+-+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+-*/
 
-    // 86206896 * 10^18 wei
+    // @Andreas: 86206896 * 10^18 wei
     uint256 public tokenCap = 86206896 * (10 ** 18);
 
     // crowdsale parameters
@@ -248,7 +112,7 @@ contract CoinsToken is Token, Math, Safe {
     // maps previousUpdateTime to the next price
     mapping(uint256 => Price) public prices;
     // maps addresses
-    mapping(address => bool) public icoParticipants;
+    mapping(address => bool) public whitelist;
 
     // TYPES
     struct Price {// tokensPerEth
@@ -264,12 +128,48 @@ contract CoinsToken is Token, Math, Safe {
     // EVENTS
     event Buy(address indexed participant, address indexed beneficiary, uint256 ethValue, uint256 amountTokens);
     event AllocatePresale(address indexed participant, uint256 amountTokens);
-    event IcoParticipant(address indexed participant);
+    event Whitelist(address indexed participant);
     event PriceUpdate(uint256 numerator, uint256 denominator);
     event AddLiquidity(uint256 ethAmount);
     event RemoveLiquidity(uint256 ethAmount);
     event WithdrawRequest(address indexed participant, uint256 amountTokens);
     event Withdraw(address indexed participant, uint256 amountTokens, uint256 etherAmount);
+
+
+    // MODIFIERS: Conditions for execution of functions
+
+    modifier isTradeable {// exempt vestingContract and fundWallet to allow dev allocations
+        require(tradeable || msg.sender == fundWallet || msg.sender == vestingContract);
+        _;
+    }
+    modifier onlyWhitelist {
+        require(whitelist[msg.sender]);
+        _;
+    }
+    modifier onlyFundWallet {
+        require(msg.sender == fundWallet);
+        _;
+    }
+    modifier onlyManagingWallets {
+        require(msg.sender == controlWallet || msg.sender == fundWallet);
+        _;
+    }
+    modifier requireWaited {
+        require(safeSub(now, waitTime) >= previousUpdateTime);
+        _;
+    }
+    modifier requireVestingSet (uint256 newNumerator) {
+        require(vestingSet);
+        _;
+    }
+
+    // Info Andreas: No exception is thrown -> no gas but also no rollback. Money is gone!
+    modifier requireIncreased (uint256 newNumerator) {
+        if (newNumerator > currentPrice.numerator) _;
+    }
+    modifier onlyControlWallet {
+        if (msg.sender == controlWallet) _;
+    }
 
 
     // CONSTRUCTOR
@@ -281,8 +181,8 @@ contract CoinsToken is Token, Math, Safe {
         require(endBlockInput > startBlockInput);
         fundWallet = msg.sender;
         controlWallet = controlWalletInput;
-        icoParticipants[fundWallet] = true;
-        icoParticipants[controlWallet] = true;
+        whitelist[fundWallet] = true;
+        whitelist[controlWallet] = true;
         currentPrice = Price(priceNumeratorInput, 1000);
         // 1 token = 1 usd at ICO start
         fundingStartBlock = startBlockInput;
@@ -297,7 +197,7 @@ contract CoinsToken is Token, Math, Safe {
         // Info: address(0) is the same as "0x0" -> an uninitialized address.
         require(vestingContractInput != address(0));
         vestingContract = vestingContractInput;
-        icoParticipants[vestingContract] = true;
+        whitelist[vestingContract] = true;
         vestingSet = true;
     }
 
@@ -341,14 +241,14 @@ contract CoinsToken is Token, Math, Safe {
     function allocatePresaleTokens(address participant, uint amountTokens) external onlyFundWallet {
         require(block.number < fundingEndBlock);
         require(participant != address(0));
-        icoParticipants[participant] = true;
-        // automatically icoParticipants accepted presale
+        whitelist[participant] = true;
+        // automatically whitelist accepted presale
         allocateTokens(participant, amountTokens);
-        IcoParticipant(participant);
+        Whitelist(participant);
         AllocatePresale(participant, amountTokens);
     }
 
-    // raise balance of icoParticipants and vestingContract and totalSupply
+    // raise balance of participants and vestingContract and totalSupply
     // vestingContract is increased by 14,9% of amountTokens
     function allocateTokens(address participant, uint256 amountTokens) private requireVestingSet {
         // 13% of total allocated for PR, Marketing, Team, Advisors
@@ -363,16 +263,16 @@ contract CoinsToken is Token, Math, Safe {
     }
 
 
-    function addIcoParticipant(address participant) external onlyManagingWallets {
-        icoParticipants[participant] = true;
-        IcoParticipant(participant);
+    function verifyParticipant(address participant) external onlyManagingWallets {
+        whitelist[participant] = true;
+        Whitelist(participant);
     }
 
     function buy() external payable {
         buyTo(msg.sender);
     }
 
-    function buyTo(address participant) public payable onlyIcoParticipant {
+    function buyTo(address participant) public payable onlyWhitelist {
         require(!halted);
         require(participant != address(0));
         require(msg.value >= minAmount);
@@ -400,7 +300,7 @@ contract CoinsToken is Token, Math, Safe {
         }
     }
 
-    function requestWithdrawal(uint256 amountTokensToWithdraw) external isTradeable onlyIcoParticipant {
+    function requestWithdrawal(uint256 amountTokensToWithdraw) external isTradeable onlyWhitelist {
         require(block.number > fundingEndBlock);
         require(amountTokensToWithdraw > 0);
         address participant = msg.sender;
