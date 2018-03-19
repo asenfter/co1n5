@@ -17,7 +17,7 @@ contract CoinsToken is Token, Math, Safe {
      * Check if trading is enabled. This condition does not apply to fundWallet and vestingContract.
      * @throws Exception if the condition is not met
      */
-    modifier isTradeable {
+    modifier requireTradeable {
         require(tradeable || msg.sender == fundWallet || msg.sender == vestingContract);
         _;
     }
@@ -26,7 +26,7 @@ contract CoinsToken is Token, Math, Safe {
      * Check if msg.sender is a known participant of the ICO.
      * @throws Exception if the condition is not met
      */
-    modifier onlyIcoParticipant {
+    modifier requireIcoParticipant {
         require(icoParticipants[msg.sender]);
         _;
     }
@@ -35,7 +35,7 @@ contract CoinsToken is Token, Math, Safe {
      * Check if msg.sender is fundWallet.
      * @throws Exception if the condition is not met
      */
-    modifier onlyFundWallet {
+    modifier requireFundWallet {
         require(msg.sender == fundWallet);
         _;
     }
@@ -44,7 +44,7 @@ contract CoinsToken is Token, Math, Safe {
      * Check if msg.sender is fundWallet or controlWallet.
      * @throws Exception if the condition is not met
      */
-    modifier onlyManagingWallets {
+    modifier requireManagingWallets {
         require(msg.sender == controlWallet || msg.sender == fundWallet);
         _;
     }
@@ -53,9 +53,8 @@ contract CoinsToken is Token, Math, Safe {
      * Check if msg.sender is controlWallet.
      * @throws Exception if the condition is not met
      */
-    modifier onlyControlWallet {
-        require(msg.sender == controlWallet);
-        _;
+    modifier onlyIfControlWallet {
+        if(msg.sender == controlWallet) _;
     }
 
     /**
@@ -63,7 +62,7 @@ contract CoinsToken is Token, Math, Safe {
      * @throws Exception if the condition is not met
      */
     modifier requireWaited {
-        require(safeSub(now, waitTime) >= previousUpdateTime);
+        require(safeSub(now, waitTime) >= currentPriceStartTime);
         _;
     }
 
@@ -81,20 +80,10 @@ contract CoinsToken is Token, Math, Safe {
      * @param addressToCheck - the address to be checked
      * @throws Exception if the condition is not met
      */
-    modifier isValidAddress (address addressToCheck) {
+    modifier requireValidAddress (address addressToCheck) {
         require(addressToCheck != address(0));
         _;
     }
-
-    /**
-     * Check if the passed value is greater than currentPrice.numerator.
-     * No exception is thrown: no gas but also no rollback
-     * @param value - new numerator
-     */
-    modifier requireIncreased (uint256 value) {
-        if (value > currentPrice.numerator) _;
-    }
-
 
     /*+-+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+-*
      * Standard members and ERC-20 Impl
@@ -103,7 +92,6 @@ contract CoinsToken is Token, Math, Safe {
     string public name = "CO1N5";
     string public symbol = "CNS";
     uint256 public decimals = 18;
-    uint256 public totalSupply;
 
     mapping(address => uint256) balances;
     mapping(address => mapping(address => uint256)) allowed;
@@ -124,13 +112,13 @@ contract CoinsToken is Token, Math, Safe {
      *
      * @event Transfer
      * @modifier onlyPayloadSize - prevent short address attack
-     * @modifier isTradeable - prevent transfers until trading allowed
-     * @modifier isValidAddress - prevent transfers to invalid receiver addresses
+     * @modifier requireTradeable - prevent transfers until trading allowed
+     * @modifier requireValidAddress - prevent transfers to invalid receiver addresses
      * @param receiver - the receiver address
      * @param value - amount of tokens to transfer
      * @return true if the transfer was successful
      */
-    function transfer(address receiver, uint256 value) onlyPayloadSize(2) isTradeable isValidAddress(receiver) returns (bool success) {
+    function transfer(address receiver, uint256 value) onlyPayloadSize(2) requireTradeable requireValidAddress(receiver) returns (bool success) {
         require(value > 0 && balances[msg.sender] >= value);
 
         balances[msg.sender] = safeSub(balances[msg.sender], value);
@@ -145,14 +133,14 @@ contract CoinsToken is Token, Math, Safe {
      *
      * @event Transfer
      * @modifier onlyPayloadSize - prevent short address attack
-     * @modifier isTradeable - prevent transfers until trading allowed
-     * @modifier isValidAddress - prevent transfers to invalid receiver addresses
+     * @modifier requireTradeable - prevent transfers until trading allowed
+     * @modifier requireValidAddress - prevent transfers to invalid receiver addresses
      * @param spender - the spender address
      * @param receiver - the receiver address
      * @param value - amount of tokens to transfer
      * @return true if the transfer was successful
      */
-    function transferFrom(address spender, address receiver, uint256 value) onlyPayloadSize(3) isTradeable isValidAddress(receiver) returns (bool success) {
+    function transferFrom(address spender, address receiver, uint256 value) onlyPayloadSize(3) requireTradeable requireValidAddress(receiver) returns (bool success) {
         require(value > 0 && balances[spender] >= value && allowed[spender][msg.sender] >= value);
 
         balances[spender] = safeSub(balances[spender], value);
@@ -168,8 +156,7 @@ contract CoinsToken is Token, Math, Safe {
      *
      * @event Approval
      * @modifier onlyPayloadSize - prevent short address attack
-     * @modifier isTradeable - prevent transfers until trading allowed
-     * @modifier isValidAddress - prevent transfers to invalid receiver addresses
+     * @modifier requireTradeable - prevent transfers until trading allowed
      * @param spender - the spender address
      * @param receiver - the receiver address
      * @param value - amount of tokens to authorize
@@ -214,7 +201,7 @@ contract CoinsToken is Token, Math, Safe {
      * CO1N5 CONTRACT:
      *     - token capitalization: 86206896 * (10 ** 18)
      *     - minimum amount of ether to buy Co1n5 Tokens: 0.04 ether
-     *     - vesting: 14.9425% of Pre-sale and ICO
+     *     - vesting: XX% of Pre-sale and ICO
      *     -
      *
      *+-+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+-*/
@@ -222,48 +209,52 @@ contract CoinsToken is Token, Math, Safe {
     // 86206896 * 10^18 wei
     uint256 public tokenCap = 86206896 * (10 ** 18);
 
-    // crowdsale parameters
-    uint256 public fundingStartBlock;
-    uint256 public fundingEndBlock;
+    // supplied tokens
+    uint256 public totalSupply;
+
+    // price parameter.
+    Price public currentPrice;
+    // time to wait between price updates
+    uint256 public waitTime = 5 hours;
+    uint256 public currentPriceStartTime = 0;
+    mapping(uint256 => Price) public prices;
+
+    // ico parameters
+    uint256 public icoStartBlock;
+    uint256 public icoEndBlock;
+    uint256 public minAmount = 0.04 ether;
+    mapping(address => bool) public icoParticipants;
+
 
     // vesting fields
     address public vestingContract;
     bool private vestingSet = false;
 
-    // root control
+    // root control wallets
     address public fundWallet;
-    // control of liquidity and limited control of updatePrice
     address public controlWallet;
-    // time to wait between controlWallet price updates
-    uint256 public waitTime = 5 hours;
 
-    // fundWallet controlled state variables
-    // halted: halt buying due to emergency, tradeable: signal that assets have been acquired
+    // halted: halt buying due to emergency
     bool public halted = false;
+    // tradeable: signal that assets have been acquired
     bool public tradeable = false;
-
-
-    uint256 public previousUpdateTime = 0;
-    Price public currentPrice;
-    uint256 public minAmount = 0.04 ether;
 
     // map participant address to a withdrawal request
     mapping(address => Withdrawal) public withdrawals;
-    // maps previousUpdateTime to the next price
-    mapping(uint256 => Price) public prices;
-    // maps addresses
-    mapping(address => bool) public icoParticipants;
 
-    // TYPES
-    struct Price {// tokensPerEth
+
+    // Price: tokens per eth
+    struct Price {
         uint256 numerator;
         uint256 denominator;
     }
 
+    // Withdrawal: amount and time for exchange rate
     struct Withdrawal {
         uint256 tokens;
-        uint256 time; // time for each withdrawal is set to the previousUpdateTime
+        uint256 time;
     }
+
 
     // EVENTS
     event Buy(address indexed participant, address indexed beneficiary, uint256 ethValue, uint256 amountTokens);
@@ -276,33 +267,102 @@ contract CoinsToken is Token, Math, Safe {
     event Withdraw(address indexed participant, uint256 amountTokens, uint256 etherAmount);
 
 
-    // CONSTRUCTOR
+    /**
+     * Constructs the contract.
+     *
+     * @param controlWalletIn - the controlWallet
+     * @param priceNumerator - numerator for price calculation
+     * @param priceDenominator - denominator for price calculation
+     * @param startBlockIn - planned start block of ICO
+     * @param endBlockIn - planned end block of ICO
+     */
+    function CoinsToken(address controlWalletIn, uint256 priceNumerator, uint256 priceDenominator, uint256 startBlockIn, uint256 endBlockIn) {
+        require(controlWalletIn != address(0));
+        require(priceNumeratorIn > 0);
+        require(endBlockIn > startBlockIn);
 
-    function C20(address controlWalletInput, uint256 priceNumeratorInput, uint256 startBlockInput, uint256 endBlockInput) {
-        // Info: address(0) is the same as "0x0" -> an uninitialized address.
-        require(controlWalletInput != address(0));
-        require(priceNumeratorInput > 0);
-        require(endBlockInput > startBlockInput);
         fundWallet = msg.sender;
-        controlWallet = controlWalletInput;
+        controlWallet = controlWalletIn;
         icoParticipants[fundWallet] = true;
         icoParticipants[controlWallet] = true;
-        currentPrice = Price(priceNumeratorInput, 1000);
-        // 1 token = 1 usd at ICO start
-        fundingStartBlock = startBlockInput;
-        fundingEndBlock = endBlockInput;
-        previousUpdateTime = now;
+
+        icoStartBlock = startBlockIn;
+        icoEndBlock = endBlockIn;
+
+        currentPrice = Price(priceNumerator, priceDenominator);
+        currentPriceStartTime = now;
     }
 
-    // METHODS
-
-    // Only the fixed FundWallet can set or update the vestingContract
-    function setVestingContract(address vestingContractInput) external onlyFundWallet {
-        // Info: address(0) is the same as "0x0" -> an uninitialized address.
-        require(vestingContractInput != address(0));
-        vestingContract = vestingContractInput;
+    /**
+     * Updates the vestingContract.
+     *
+     * @modifier requireFundWallet - only fundWallet can change the vestingContract
+     * @modifier requireValidAddress - prevent setting an invalid vestingContract
+     * @param in - the new vestingContract
+     */
+    function updateVestingContract(address in) external requireFundWallet requireValidAddress(in) {
+        vestingContract = in;
         icoParticipants[vestingContract] = true;
         vestingSet = true;
+    }
+
+    /**
+     * Updates the vestingContract.
+     *
+     * @modifier requireFundWallet - only fundWallet can change the fundWallet
+     * @modifier requireValidAddress - prevent setting an invalid fundWallet
+     * @param in - the new fundWallet
+     */
+    function updateFundWallet(address in) external requireFundWallet requireValidAddress(in) {
+        fundWallet = in;
+        icoParticipants[fundWallet] = true; //TODO Andreas neu
+    }
+
+    /**
+     * Updates the controlWallet.
+     *
+     * @modifier requireFundWallet - only fundWallet can change the controlWallet
+     * @modifier requireValidAddress - prevent setting an invalid controlWallet
+     * @param in - the new controlWallet
+     */
+    function updateControlWallet(address in) external requireFundWallet requireValidAddress(in) {
+        controlWallet = in;
+        icoParticipants[controlWallet] = true; //TODO Andreas neu
+    }
+
+    /**
+     * Updates the waitTime.
+     *
+     * @modifier requireFundWallet - only fundWallet can change the controlWallet
+     * @param in - the waitTime in hours
+     */
+    function updateWaitTime(uint256 newWaitTime) external requireFundWallet {
+        require(newWaitTime >= 0); //TODO Andreas neu
+        waitTime = newWaitTime * 1 hours; //TODO Andreas neu
+    }
+
+    /**
+     * Updates block number of ICO start.
+     *
+     * @modifier requireFundWallet - only fundWallet can change the start time
+     * @param newIcoStartBlock - the new block number for ICO start
+     */
+    function updateIcoStartBlock(uint256 newIcoStartBlock) external requireFundWallet {
+        require(block.number < icoStartBlock); //TODO Andreas: kann das weg?
+        require(block.number < newIcoStartBlock);
+        icoStartBlock = newIcoStartBlock;
+    }
+
+    /**
+     * Updates block number of ICO end.
+     *
+     * @modifier requireFundWallet - only fundWallet can change the start time
+     * @param newIcoEndBlock - the new block number for ICO end
+     */
+    function updateIcoEndBlock(uint256 newIcoEndBlock) external requireFundWallet {
+        require(block.number < icoEndBlock); //TODO Andreas: kann das weg?
+        require(block.number < newIcoEndBlock);
+        icoEndBlock = newIcoEndBlock;
     }
 
     // UPDATE Price.numerator
@@ -310,40 +370,64 @@ contract CoinsToken is Token, Math, Safe {
     // allows fundWallet complete control over Price: fundwallet has no 20% limitation and can also decrease numerator!!!!
     // requires: newNumerator > currentNumerator
     // waitTime must be exceeded since last update
-    function updatePrice(uint256 newNumerator) external onlyManagingWallets {
+
+    /**
+     * Updates the numerator for price calculation. Only controlWallet calls are compliant and limited
+     * to 20% increase within a fixed period.
+     *
+     * @modifier requireFundWallet - only fundWallet can change the start time
+     * @param newNumerator - the new numerator for price calculation
+     */
+    function updatePrice(uint256 newNumerator) external requireManagingWallets {
         require(newNumerator > 0);
         requireLimitedChange(newNumerator);
         // either controlWallet command is compliant or transaction came from fundWallet
         currentPrice.numerator = newNumerator;
         // maps time to new Price (if not during ICO)
-        prices[previousUpdateTime] = currentPrice;
-        previousUpdateTime = now;
+        prices[currentPriceStartTime] = currentPrice;
+        currentPriceStartTime = now;
         PriceUpdate(newNumerator, currentPrice.denominator);
     }
 
-    // controlWallet can only increase price by max 20% and only every waitTime
-    function requireLimitedChange(uint256 newNumerator) private onlyControlWallet requireWaited requireIncreased(newNumerator) {
-        uint256 percentage_diff = 0;
-        percentage_diff = safeMul(newNumerator, 100) / currentPrice.numerator;
-        percentage_diff = safeSub(percentage_diff, 100);
-        require(percentage_diff <= 20);
+    /**
+     * Updates the numerator for price calculation. Only controlWallet calls are compliant and are limited
+     * to 20% increase within a fixed period.
+     *
+     * @modifier onlyIfControlWallet - only if controlWallet, if not return to calling method
+     * @modifier requireWaited - only if waiting period is over, otherwise skip transaction
+     * @param newNumerator - the new numerator for price calculation
+     */
+    function requireLimitedChange(uint256 newNumerator) private onlyIfControlWallet requireWaited {
+        if (newNumerator > currentPrice.numerator) {
+            uint256 percentage_diff = 0;
+            percentage_diff = safeMul(newNumerator, 100) / currentPrice.numerator;
+            percentage_diff = safeSub(percentage_diff, 100);
+            require(percentage_diff <= 20);
+        }
     }
+
+
+
+
+
+
+
 
     // UPDATE Price.numerator
     // allows fundWallet to update the denominator within a time contstraint
-    function updatePriceDenominator(uint256 newDenominator) external onlyFundWallet {
-        require(block.number > fundingEndBlock);
+    function updatePriceDenominator(uint256 newDenominator) external requireFundWallet {
+        require(block.number > icoEndBlock);
         require(newDenominator > 0);
         currentPrice.denominator = newDenominator;
         // maps time to new Price
-        prices[previousUpdateTime] = currentPrice;
-        previousUpdateTime = now;
+        prices[currentPriceStartTime] = currentPrice;
+        currentPriceStartTime = now;
         PriceUpdate(currentPrice.numerator, newDenominator);
     }
 
 
-    function allocatePresaleTokens(address participant, uint amountTokens) external onlyFundWallet {
-        require(block.number < fundingEndBlock);
+    function allocatePresaleTokens(address participant, uint amountTokens) external requireFundWallet {
+        require(block.number < icoEndBlock);
         require(participant != address(0));
         icoParticipants[participant] = true;
         // automatically icoParticipants accepted presale
@@ -367,7 +451,7 @@ contract CoinsToken is Token, Math, Safe {
     }
 
 
-    function addIcoParticipant(address participant) external onlyManagingWallets {
+    function addIcoParticipant(address participant) external requireManagingWallets {
         icoParticipants[participant] = true;
         IcoParticipant(participant);
     }
@@ -376,11 +460,11 @@ contract CoinsToken is Token, Math, Safe {
         buyTo(msg.sender);
     }
 
-    function buyTo(address participant) public payable onlyIcoParticipant {
+    function buyTo(address participant) public payable requireIcoParticipant {
         require(!halted);
         require(participant != address(0));
         require(msg.value >= minAmount);
-        require(block.number >= fundingStartBlock && block.number < fundingEndBlock);
+        require(block.number >= icoStartBlock && block.number < icoEndBlock);
         uint256 icoDenominator = icoDenominatorPrice();
         uint256 tokensToBuy = safeMul(msg.value, currentPrice.numerator) / icoDenominator;
         allocateTokens(participant, tokensToBuy);
@@ -391,7 +475,7 @@ contract CoinsToken is Token, Math, Safe {
 
     // time based on blocknumbers, assuming a blocktime of 30s
     function icoDenominatorPrice() public constant returns (uint256) {
-        uint256 icoDuration = safeSub(block.number, fundingStartBlock);
+        uint256 icoDuration = safeSub(block.number, icoStartBlock);
         uint256 denominator;
         if (icoDuration < 2880) {// #blocks = 24*60*60/30 = 2880
             return currentPrice.denominator;
@@ -404,15 +488,15 @@ contract CoinsToken is Token, Math, Safe {
         }
     }
 
-    function requestWithdrawal(uint256 amountTokensToWithdraw) external isTradeable onlyIcoParticipant {
-        require(block.number > fundingEndBlock);
+    function requestWithdrawal(uint256 amountTokensToWithdraw) external requireTradeable requireIcoParticipant {
+        require(block.number > icoEndBlock);
         require(amountTokensToWithdraw > 0);
         address participant = msg.sender;
         require(balances[participant] >= amountTokensToWithdraw);
         require(withdrawals[participant].tokens == 0);
         // participant cannot have outstanding withdrawals
         balances[participant] = safeSub(balances[participant], amountTokensToWithdraw);
-        withdrawals[participant] = Withdrawal({tokens : amountTokensToWithdraw, time : previousUpdateTime});
+        withdrawals[participant] = Withdrawal({tokens : amountTokensToWithdraw, time : currentPriceStartTime});
         WithdrawRequest(participant, amountTokensToWithdraw);
     }
 
@@ -463,54 +547,28 @@ contract CoinsToken is Token, Math, Safe {
     }
 
     // allow fundWallet or controlWallet to add ether to contract
-    function addLiquidity() external onlyManagingWallets payable {
+    function addLiquidity() external requireManagingWallets payable {
         require(msg.value > 0);
         AddLiquidity(msg.value);
     }
 
     // allow fundWallet to remove ether from contract
-    function removeLiquidity(uint256 amount) external onlyManagingWallets {
+    function removeLiquidity(uint256 amount) external requireManagingWallets {
         require(this.balance >= amount);
         fundWallet.transfer(amount);
         RemoveLiquidity(amount);
     }
 
-    function changeFundWallet(address newFundWallet) external onlyFundWallet {
-        require(newFundWallet != address(0));
-        fundWallet = newFundWallet;
-    }
-
-    function changeControlWallet(address newControlWallet) external onlyFundWallet {
-        require(newControlWallet != address(0));
-        controlWallet = newControlWallet;
-    }
-
-    function changeWaitTime(uint256 newWaitTime) external onlyFundWallet {
-        waitTime = newWaitTime;
-    }
-
-    function updateFundingStartBlock(uint256 newFundingStartBlock) external onlyFundWallet {
-        require(block.number < fundingStartBlock);
-        require(block.number < newFundingStartBlock);
-        fundingStartBlock = newFundingStartBlock;
-    }
-
-    function updateFundingEndBlock(uint256 newFundingEndBlock) external onlyFundWallet {
-        require(block.number < fundingEndBlock);
-        require(block.number < newFundingEndBlock);
-        fundingEndBlock = newFundingEndBlock;
-    }
-
-    function halt() external onlyFundWallet {
+    function halt() external requireFundWallet {
         halted = true;
     }
 
-    function unhalt() external onlyFundWallet {
+    function unhalt() external requireFundWallet {
         halted = false;
     }
 
-    function enableTrading() external onlyFundWallet {
-        require(block.number > fundingEndBlock);
+    function enableTrading() external requireFundWallet {
+        require(block.number > icoEndBlock);
         tradeable = true;
     }
 
@@ -520,7 +578,7 @@ contract CoinsToken is Token, Math, Safe {
         buyTo(msg.sender);
     }
 
-    function claimTokens(address _token) external onlyFundWallet {
+    function claimTokens(address _token) external requireFundWallet {
         require(_token != address(0));
         Token token = Token(_token);
         uint256 balance = token.balanceOf(this);

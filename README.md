@@ -65,3 +65,9 @@ modifier ... {
 
 ### variables
 Info: address(0) is the same as "0x0", an uninitialized address.
+
+##Units and Globally Available Variables
+http://solidity.readthedocs.io/en/v0.4.21/units-and-global-variables.html
+
+##visibility-and-getters
+http://solidity.readthedocs.io/en/develop/contracts.html#visibility-and-getters
