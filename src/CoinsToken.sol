@@ -76,11 +76,38 @@ contract CoinsToken is Token, Math, Safe {
     }
 
     /**
+     * Check if the ico period is finished
+     * @throws Exception if the condition is not met
+     */
+    modifier requireIcoFinished {
+        require(block.number >= icoEndBlock);
+        _;
+    }
+
+    /**
+     * Check if the ico period is active
+     * @throws Exception if the condition is not met
+     */
+    modifier requireIcoNotExpired {
+        require(block.number < icoEndBlock);
+        _;
+    }
+
+    /**
+     * Check if the ico period is active
+     * @throws Exception if the condition is not met
+     */
+    modifier requireIcoActive {
+        require(block.number >= icoStartBlock && block.number < icoEndBlock);
+        _;
+    }
+
+    /**
      * Check if the passed address is valid.
      * @param addressToCheck - the address to be checked
      * @throws Exception if the condition is not met
      */
-    modifier requireValidAddress (address addressToCheck) {
+    modifier requireValidAddress(address addressToCheck) {
         require(addressToCheck != address(0));
         _;
     }
@@ -201,7 +228,7 @@ contract CoinsToken is Token, Math, Safe {
      * CO1N5 CONTRACT:
      *     - token capitalization: 86206896 * (10 ** 18)
      *     - minimum amount of ether to buy Co1n5 Tokens: 0.04 ether
-     *     - vesting: XX% of Pre-sale and ICO
+     *     - development: XX% of Pre-sale and ICO
      *     -
      *
      *+-+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+-*/
@@ -357,25 +384,20 @@ contract CoinsToken is Token, Math, Safe {
      * Updates block number of ICO end.
      *
      * @modifier requireFundWallet - only fundWallet can change the start time
+     * @modifier requireIcoNotExpired - ico must not be expired
      * @param newIcoEndBlock - the new block number for ICO end
      */
-    function updateIcoEndBlock(uint256 newIcoEndBlock) external requireFundWallet {
-        require(block.number < icoEndBlock); //TODO Andreas: kann das weg?
+    function updateIcoEndBlock(uint256 newIcoEndBlock) external requireFundWallet requireIcoNotExpired {
         require(block.number < newIcoEndBlock);
         icoEndBlock = newIcoEndBlock;
     }
-
-    // UPDATE Price.numerator
-    // allows controlWallet or fundWallet to update the price within a time constraint,
-    // allows fundWallet complete control over Price: fundwallet has no 20% limitation and can also decrease numerator!!!!
-    // requires: newNumerator > currentNumerator
-    // waitTime must be exceeded since last update
 
     /**
      * Updates the numerator for price calculation. Only controlWallet calls are compliant and limited
      * to 20% increase within a fixed period.
      *
-     * @modifier requireFundWallet - only fundWallet can change the start time
+     * @event PriceUpdate
+     * @modifier requireManagingWallets - only fundWallet or controlWallet can change the start time
      * @param newNumerator - the new numerator for price calculation
      */
     function updatePrice(uint256 newNumerator) external requireManagingWallets {
@@ -393,7 +415,7 @@ contract CoinsToken is Token, Math, Safe {
      * Updates the numerator for price calculation. Only controlWallet calls are compliant and are limited
      * to 20% increase within a fixed period.
      *
-     * @modifier onlyIfControlWallet - only if controlWallet, if not return to calling method
+     * @modifier onlyIfControlWallet - only if controlWallet, if not return to caller
      * @modifier requireWaited - only if waiting period is over, otherwise skip transaction
      * @param newNumerator - the new numerator for price calculation
      */
@@ -406,17 +428,16 @@ contract CoinsToken is Token, Math, Safe {
         }
     }
 
-
-
-
-
-
-
-
-    // UPDATE Price.numerator
-    // allows fundWallet to update the denominator within a time contstraint
-    function updatePriceDenominator(uint256 newDenominator) external requireFundWallet {
-        require(block.number > icoEndBlock);
+    /**
+     * Updates the denominator for price calculation. The update has no limit and no wait time
+     * and is not allowed during the ICO period.
+     *
+     * @event PriceUpdate
+     * @modifier requireFundWallet - only fundWallet can change the denominator
+     * @modifier requireIcoFinished - no change during ICO
+     * @param newDenominator - the new denominator for price calculation
+     */
+    function updatePriceDenominator(uint256 newDenominator) external requireFundWallet requireIcoFinished {
         require(newDenominator > 0);
         currentPrice.denominator = newDenominator;
         // maps time to new Price
@@ -426,45 +447,78 @@ contract CoinsToken is Token, Math, Safe {
     }
 
 
-    function allocatePresaleTokens(address participant, uint amountTokens) external requireFundWallet {
-        require(block.number < icoEndBlock);
-        require(participant != address(0));
+    /**
+     * Adds a participant to the ICO white-list.
+     *
+     * @event IcoParticipant
+     * @modifier requireManagingWallets - only fundWallet or controlWallet can register participants
+     * @param participant - participant for ICO
+     */
+    function registerIcoParticipant(address participant) external requireManagingWallets {
         icoParticipants[participant] = true;
-        // automatically icoParticipants accepted presale
-        allocateTokens(participant, amountTokens);
         IcoParticipant(participant);
-        AllocatePresale(participant, amountTokens);
     }
 
-    // raise balance of icoParticipants and vestingContract and totalSupply
-    // vestingContract is increased by 14,9% of amountTokens
-    function allocateTokens(address participant, uint256 amountTokens) private requireVestingSet {
-        // 13% of total allocated for PR, Marketing, Team, Advisors
-        uint256 developmentAllocation = safeMul(amountTokens, 14942528735632185) / 100000000000000000;
+    /**
+     * PRE-SALE PHASE: Allocates tokens during the pre-sale period.
+     *
+     * @event IcoParticipant
+     * @event AllocatePresale
+     * @modifier requireFundWallet - only fundWallet can change the denominator
+     * @modifier requireValidAddress - participant address must be valid
+     * @modifier requireIcoNotExpired - ico must not be expired
+     * @param participant - new participant for ICO
+     * @param value - amount of pre-sale tokens
+     */
+    function allocatePresaleTokens(address participant, uint value) external requireFundWallet requireValidAddress(participant) requireIcoNotExpired {
+        icoParticipants[participant] = true;
+        allocateTokens(participant, value);
+
+        IcoParticipant(participant);
+        AllocatePresale(participant, value);
+    }
+
+    /**
+     * Allocates tokens for the passed participant and allocates the corresponding development tokens.
+     *
+     * @modifier requireVestingSet - a vestingContract must be set
+     * @param participant - participant for ICO
+     * @param value - amount of tokens
+     */
+    function allocateTokens(address participant, uint256 value) private requireVestingSet { //TODO kann ich hier requireIcoParticipant setzen?
+        uint256 developmentAllocation = safeMul(value, 14942528735632185) / 100000000000000000;
+
         // check that token cap is not exceeded
-        uint256 newTokens = safeAdd(amountTokens, developmentAllocation);
-        require(safeAdd(totalSupply, newTokens) <= tokenCap);
+        uint256 newTokens = safeAdd(value, developmentAllocation);
+        uint256 newTokenCap = safeAdd(totalSupply, newTokens);
+        require(newTokenCap <= tokenCap);
+
         // increase token supply, assign tokens to participant
         totalSupply = safeAdd(totalSupply, newTokens);
-        balances[participant] = safeAdd(balances[participant], amountTokens);
+        balances[participant] = safeAdd(balances[participant], value);
         balances[vestingContract] = safeAdd(balances[vestingContract], developmentAllocation);
     }
 
-
-    function addIcoParticipant(address participant) external requireManagingWallets {
-        icoParticipants[participant] = true;
-        IcoParticipant(participant);
-    }
-
+    /**
+     * ICO PHASE: Allocates tokens during the pre-sale period.
+     *
+     * @event IcoParticipant
+     * @event AllocatePresale
+     * @modifier requireFundWallet - only fundWallet can change the denominator
+     * @modifier requireValidAddress - participant address must be valid
+     * @modifier requireIcoNotExpired - ico must not be expired
+     * @param participant - new participant for ICO
+     * @param value - amount of pre-sale tokens
+     */
     function buy() external payable {
         buyTo(msg.sender);
     }
 
-    function buyTo(address participant) public payable requireIcoParticipant {
+//* @modifier requireIcoActive - ico must not be expired
+    function buyTo(address participant) public payable requireIcoParticipant requireIcoActive {
         require(!halted);
         require(participant != address(0));
         require(msg.value >= minAmount);
-        require(block.number >= icoStartBlock && block.number < icoEndBlock);
         uint256 icoDenominator = icoDenominatorPrice();
         uint256 tokensToBuy = safeMul(msg.value, currentPrice.numerator) / icoDenominator;
         allocateTokens(participant, tokensToBuy);
@@ -488,8 +542,7 @@ contract CoinsToken is Token, Math, Safe {
         }
     }
 
-    function requestWithdrawal(uint256 amountTokensToWithdraw) external requireTradeable requireIcoParticipant {
-        require(block.number > icoEndBlock);
+    function requestWithdrawal(uint256 amountTokensToWithdraw) external requireTradeable requireIcoParticipant requireIcoFinished {
         require(amountTokensToWithdraw > 0);
         address participant = msg.sender;
         require(balances[participant] >= amountTokensToWithdraw);
@@ -567,8 +620,7 @@ contract CoinsToken is Token, Math, Safe {
         halted = false;
     }
 
-    function enableTrading() external requireFundWallet {
-        require(block.number > icoEndBlock);
+    function enableTrading() external requireFundWallet requireIcoFinished {
         tradeable = true;
     }
 
