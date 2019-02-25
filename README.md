@@ -11,63 +11,64 @@
 
 # Solidity
 
-###Best practice
+* Best practice
 https://github.com/ConsenSys/smart-contract-best-practices/#circuit-breakers-pause-contract-functionality
 
 
-###GAS
+* GAS
 https://ethereum.stackexchange.com/questions/18778/gas-cost-of-different-computations
 
 
-### functions
+* functions
 http://solidity.readthedocs.io/en/develop/contracts.html?highlight=pure#functions
 
-constant is an alias to view.
+* constant is an alias to view.
 
 
-public vs external
+* public vs external
 https://ethereum.stackexchange.com/questions/19380/external-vs-public-best-practices?answertab=active#tab-top
 
 
 
-modifier or require
+* modifier or require
 https://ethereum.stackexchange.com/questions/29867/using-require-or-modifier
 
 
-modifier as interceptor
+* modifier as interceptor
 https://blog.colony.io/how-to-write-clean-elegant-solidity-code-using-function-modifiers-ba55fb366a92
-modifier ... {
- StartEvent(...)
- -;
- EndEvent(...)
-}
+```
+    modifier ... {
+     StartEvent(...)
+     -;
+     EndEvent(...)
+    }
+```
 
 
-
-throw exception in modifier (yes/no)
+* throw exception in modifier (yes/no)
 https://ethereum.stackexchange.com/questions/8436/why-use-throw-in-modifiers-instead-of-conditional-entrance
 https://blog.colony.io/how-to-write-clean-elegant-solidity-code-using-function-modifiers-ba55fb366a92
-modifier ... {
- if(...) throw
- _;
-}
-modifier ... {
- if(...) _;
-}
-modifier ... {
- require()
- _;
-}
+```
+    modifier ... {
+     if(...) throw
+     _;
+    }
+    modifier ... {
+     if(...) _;
+    }
+    modifier ... {
+     require()
+     _;
+    }
+```
 
 
 
-
-
-### variables
+* variables
 Info: address(0) is the same as "0x0", an uninitialized address.
 
-##Units and Globally Available Variables
+* Units and Globally Available Variables
 http://solidity.readthedocs.io/en/v0.4.21/units-and-global-variables.html
 
-##visibility-and-getters
+* visibility-and-getters
 http://solidity.readthedocs.io/en/develop/contracts.html#visibility-and-getters
