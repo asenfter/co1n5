@@ -133,7 +133,7 @@ contract CoinsToken is Token, Math, Safe {
         return balances[holder];
     }
 
-    // todo Andreas: check onlyPayloadSize 2 oder 3?
+    // todo: check onlyPayloadSize 2 oder 3?
     /**
      * Transfers tokens to an other address.
      *
@@ -154,7 +154,7 @@ contract CoinsToken is Token, Math, Safe {
         return true;
     }
 
-    // todo Andreas: check onlyPayloadSize 2 oder 3?
+    //check onlyPayloadSize 2 oder 3?
     /**
      * Transfers tokens from spender to receiver address if msg.sender is allowed to.
      *
@@ -342,7 +342,7 @@ contract CoinsToken is Token, Math, Safe {
      */
     function updateFundWallet(address in) external requireFundWallet requireValidAddress(in) {
         fundWallet = in;
-        icoParticipants[fundWallet] = true; //TODO Andreas neu
+        icoParticipants[fundWallet] = true; //check
     }
 
     /**
@@ -354,7 +354,7 @@ contract CoinsToken is Token, Math, Safe {
      */
     function updateControlWallet(address in) external requireFundWallet requireValidAddress(in) {
         controlWallet = in;
-        icoParticipants[controlWallet] = true; //TODO Andreas neu
+        icoParticipants[controlWallet] = true; //check
     }
 
     /**
@@ -364,8 +364,8 @@ contract CoinsToken is Token, Math, Safe {
      * @param in - the waitTime in hours
      */
     function updateWaitTime(uint256 newWaitTime) external requireFundWallet {
-        require(newWaitTime >= 0); //TODO Andreas neu
-        waitTime = newWaitTime * 1 hours; //TODO Andreas neu
+        require(newWaitTime >= 0); //check
+        waitTime = newWaitTime * 1 hours; //check
     }
 
     /**
@@ -375,7 +375,7 @@ contract CoinsToken is Token, Math, Safe {
      * @param newIcoStartBlock - the new block number for ICO start
      */
     function updateIcoStartBlock(uint256 newIcoStartBlock) external requireFundWallet {
-        require(block.number < icoStartBlock); //TODO Andreas: kann das weg?
+        require(block.number < icoStartBlock); //check if needed
         require(block.number < newIcoStartBlock);
         icoStartBlock = newIcoStartBlock;
     }
@@ -485,7 +485,7 @@ contract CoinsToken is Token, Math, Safe {
      * @param participant - participant for ICO
      * @param value - amount of tokens
      */
-    function allocateTokens(address participant, uint256 value) private requireVestingSet { //TODO kann ich hier requireIcoParticipant setzen?
+    function allocateTokens(address participant, uint256 value) private requireVestingSet { //check: requireIcoParticipant
         uint256 developmentAllocation = safeMul(value, 14942528735632185) / 100000000000000000;
 
         // check that token cap is not exceeded
